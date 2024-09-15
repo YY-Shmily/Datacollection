@@ -1,0 +1,6 @@
+﻿  main.cpp
+D:\VisualStudio2022\IDE\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later.
+D:\VSsource\Datacollection\Datacollection\main.cpp(55,14): error C2653: “fs”: 不是类或命名空间名称
+D:\VSsource\Datacollection\Datacollection\main.cpp(55,18): error C3861: “exists”: 找不到标识符
+D:\VSsource\Datacollection\Datacollection\main.cpp(56,13): error C2653: “fs”: 不是类或命名空间名称
+D:\VSsource\Datacollection\Datacollection\main.cpp(56,17): error C3861: “create_directories”: 找不到标识符
