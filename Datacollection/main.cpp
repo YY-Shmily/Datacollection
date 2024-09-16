@@ -19,7 +19,6 @@ using json = nlohmann::json;
 // 定义MQTT参数
 #define ADDRESS     "tcp://localhost:1883"  // MQTT 服务器地址
 #define CLIENTID    "ExampleClientSub"       // 客户端 ID
-#define TOPIC       "your/topic"             // 订阅的主题
 #define QOS         1                        // 服务质量等级
 #define TIMEOUT     10000L                   // 超时时间
 
@@ -32,6 +31,15 @@ queue<string> VibrationFeed;
 queue<string> Macro;
 queue<string> PLC;
 
+string ParseFocas(const string& msg, const string& type);
+vector<string> ParseVibration(const string& msg, const string& type);
+void SaveMessages();
+void delivered(void* context, MQTTClient_deliveryToken dt);
+int msgarrvd(void* context, char* topicName, int topicLen, MQTTClient_message* message);
+void connlost(void* context, char* cause);
+bool DirectoryExists(const string& dirPath);
+bool CreateDirectory(const string& dirPath);
+
 volatile MQTTClient_deliveryToken deliveredtoken;
 
 void delivered(void* context, MQTTClient_deliveryToken dt) {
@@ -39,24 +47,14 @@ void delivered(void* context, MQTTClient_deliveryToken dt) {
     deliveredtoken = dt;
 }
 
-// 当接收到消息时调用
-int msgarrvd(void* context, char* topicName, int topicLen, MQTTClient_message* message) {
-    cout << "Message arrived" << endl;
-    cout << "Topic: " << topicName << endl;
-    cout << "Message: " << (char*)message->payload << endl;
-    MQTTClient_freeMessage(&message);
-    MQTTClient_free(topicName);
-    return 1;
-}
-
 // 当连接丢失时调用
 void connlost(void* context, char* cause) {
-    cout << "\nConnection lost" << std::endl;
-    cout << "Cause: " << cause << std::endl;
+    cout << "\nConnection lost" << endl;
+    cout << "Cause: " << cause << endl;
 }
 
 
-bool DirectoryExists(const std::string& dirPath) {
+bool DirectoryExists(const string& dirPath) {
     struct stat info;
     if (stat(dirPath.c_str(), &info) != 0) {
         return false;  // 路径不存在
@@ -69,80 +67,80 @@ bool DirectoryExists(const std::string& dirPath) {
     }
 }
 
-bool CreateDirectory(const std::string& dirPath) {
+bool CreateDirectory(const string& dirPath) {
     return _mkdir(dirPath.c_str()) == 0 || errno == EEXIST;  // Windows 使用 _mkdir
 }
 
 void SaveMessages()
 {
-    std::string focas = "";
-    std::string focasNC = "";
-    std::string focasPower = "";
-    std::string vibrationMain = "";
-    std::string vibrationFeed = "";
-    std::string macro = "";
-    std::string plc = "";
+    string focas = "";
+    string focasNC = "";
+    string focasPower = "";
+    string vibrationMain = "";
+    string vibrationFeed = "";
+    string macro = "";
+    string plc = "";
 
     // 定义桌面路径
-    std::string desktopPath = "C://desktop/WXF";  // 固定路径
-    std::string topic = "YourTopic"; // 替换成实际的主题
+    string desktopPath = "C:";  // 固定路径
+    string topic = "TW_part"; // 替换成实际的主题
     if (!topic.empty()) {
         desktopPath = desktopPath + "//" + topic;  // 合成路径
         if (!DirectoryExists(desktopPath)) {
             if (!CreateDirectory(desktopPath)) {
-                std::cerr << "无法创建目录: " << desktopPath << std::endl;
+                cerr << "无法创建目录: " << desktopPath << endl;
                 return ;  // 创建目录失败，退出程序
             }
         }
     }
 
     // 文件路径
-    std::string FocasPath = desktopPath + "//Focas.txt";
-    std::string FocasNCPath = desktopPath + "//FocasNC.txt";
-    std::string FocasPowerPath = desktopPath + "//FocasPower.txt";
-    std::string VibrationMainPath = desktopPath + "//VibrationMain.txt";
-    std::string VibrationFeedPath = desktopPath + "//VibrationFeed.txt";
-    std::string MacroPath = desktopPath + "//FocasMacro.txt";
-    std::string PLCPath = desktopPath + "//FocasPLC.txt";
+    string FocasPath = desktopPath + "//Focas.txt";
+    string FocasNCPath = desktopPath + "//FocasNC.txt";
+    string FocasPowerPath = desktopPath + "//FocasPower.txt";
+    string VibrationMainPath = desktopPath + "//VibrationMain.txt";
+    string VibrationFeedPath = desktopPath + "//VibrationFeed.txt";
+    string MacroPath = desktopPath + "//FocasMacro.txt";
+    string PLCPath = desktopPath + "//FocasPLC.txt";
 
     // 写入文件内容
-    std::ofstream focasFile(FocasPath, std::ios::app);
+    ofstream focasFile(FocasPath, ios::app);
     if (focasFile.is_open()) {
         focasFile << "时间 主轴负载 X轴负载 Y轴负载 Z轴负载 主轴转速 进给速度 X机械坐标 Y机械坐标 Z机械坐标\n";
         focasFile.close();
     }
 
-    std::ofstream focasNCFile(FocasNCPath, std::ios::app);
+    ofstream focasNCFile(FocasNCPath, ios::app);
     if (focasNCFile.is_open()) {
         focasNCFile << "时间 程序号 子程序号 指令行号 GCode\n";
         focasNCFile.close();
     }
 
-    std::ofstream focasPowerFile(FocasPowerPath, std::ios::app);
+    ofstream focasPowerFile(FocasPowerPath, ios::app);
     if (focasPowerFile.is_open()) {
         focasPowerFile << "时间 主轴功率\n";
         focasPowerFile.close();
     }
 
-    std::ofstream vibrationMainFile(VibrationMainPath, std::ios::app);
+    ofstream vibrationMainFile(VibrationMainPath, ios::app);
     if (vibrationMainFile.is_open()) {
         vibrationMainFile << "时间 主轴振动信号X 主轴振动信号Y 主轴振动信号Z\n";
         vibrationMainFile.close();
     }
 
-    std::ofstream vibrationFeedFile(VibrationFeedPath, std::ios::app);
+    ofstream vibrationFeedFile(VibrationFeedPath, ios::app);
     if (vibrationFeedFile.is_open()) {
         vibrationFeedFile << "时间 进给轴振动信号X 进给轴振动信号Y 进给轴振动信号Z\n";
         vibrationFeedFile.close();
     }
 
-    std::ofstream macroFile(MacroPath, std::ios::app);
+    ofstream macroFile(MacroPath, ios::app);
     if (macroFile.is_open()) {
         macroFile << "时间 变量1 变量2 #00510\n";
         macroFile.close();
     }
 
-    std::ofstream plcFile(PLCPath, std::ios::app);
+    ofstream plcFile(PLCPath, ios::app);
     if (plcFile.is_open()) {
         plcFile << "时间 循环启动 刀具号 切削信号 进给旋钮 M180 M182\n";
         plcFile.close();
@@ -153,7 +151,7 @@ void SaveMessages()
         if (!Focas.empty()) {
             focas = Focas.front();
             Focas.pop();
-            std::ofstream outFile(FocasPath, std::ios_base::app);
+            ofstream outFile(FocasPath, ios_base::app);
             outFile << ParseFocas(focas, "Focas") << "\n";
         }
 
@@ -161,7 +159,7 @@ void SaveMessages()
         if (!FocasNC.empty()) {
             focasNC = FocasNC.front();
             FocasNC.pop();
-            std::ofstream outFile(FocasNCPath, std::ios_base::app);
+            ofstream outFile(FocasNCPath, ios_base::app);
             outFile << ParseFocas(focasNC, "FocasNC") << "\n";
         }
 
@@ -169,7 +167,7 @@ void SaveMessages()
         if (!FocasPower.empty()) {
             focasPower = FocasPower.front();
             FocasPower.pop();
-            std::ofstream outFile(FocasPowerPath, std::ios_base::app);
+            ofstream outFile(FocasPowerPath, ios_base::app);
             outFile << ParseFocas(focasPower, "FocasPower") << "\n";
         }
 
@@ -177,7 +175,7 @@ void SaveMessages()
         if (!Macro.empty()) {
             macro = Macro.front();
             Macro.pop();
-            std::ofstream outFile(MacroPath, std::ios_base::app);
+            ofstream outFile(MacroPath, ios_base::app);
             outFile << ParseFocas(macro, "FocasMacro") << "\n";
         }
 
@@ -185,7 +183,7 @@ void SaveMessages()
         if (!PLC.empty()) {
             plc = PLC.front();
             PLC.pop();
-            std::ofstream outFile(PLCPath, std::ios_base::app);
+            ofstream outFile(PLCPath, ios_base::app);
             outFile << ParseFocas(plc, "FocasPLC") << "\n";
         }
 
@@ -194,7 +192,7 @@ void SaveMessages()
             vibrationMain = VibrationMain.front();
             VibrationMain.pop();
             auto parsedVibration = ParseVibration(vibrationMain, "vibrationMain");
-            std::ofstream outFile(VibrationMainPath, std::ios_base::app);
+            ofstream outFile(VibrationMainPath, ios_base::app);
             outFile << parsedVibration[3] << "\n";
             outFile << parsedVibration[0] << "\n";
             outFile << parsedVibration[1] << "\n";
@@ -206,7 +204,7 @@ void SaveMessages()
             vibrationFeed = VibrationFeed.front();
             VibrationFeed.pop();
             auto parsedVibration = ParseVibration(vibrationFeed, "vibrationFeed");
-            std::ofstream outFile(VibrationFeedPath, std::ios_base::app);
+            ofstream outFile(VibrationFeedPath, ios_base::app);
             outFile << parsedVibration[3] << "\n";
             outFile << parsedVibration[0] << "\n";
             outFile << parsedVibration[1] << "\n";
@@ -214,7 +212,7 @@ void SaveMessages()
         }
 
         //// 等待一段时间，以防止过度占用 CPU
-        //std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        //this_thread::sleep_for(chrono::milliseconds(100));
     }
 }
 
@@ -238,14 +236,14 @@ FocusModel DeserializeFocas(const string& msg) {
 string ConvertEpochToDateTime(time_t epoch_seconds) {
     // C++ 中处理时间，转换为本地时间格式
     time_t raw_time = epoch_seconds;
-    struct tm* time_info;
+    struct tm time_info;
     char buffer[80];
 
     // 获取本地时间
-    time_info = localtime(&raw_time);
+    localtime_s(&time_info, &raw_time);
 
     // 格式化时间字符串
-    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", time_info);
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &time_info);
     return string(buffer);
 }
 
@@ -327,58 +325,60 @@ string ParseFocas(const string& msg, const string& type) {
 
 
 
+
 // 十六进制字符串转为 ASCII 字符串
-std::string HexToAscii(const std::string& hexString) {
-    std::string result;
+string HexToAscii(const string& hexString) {
+    string result;
     for (size_t i = 0; i < hexString.length(); i += 2) {
-        std::string byte = hexString.substr(i, 2);
-        char ch = static_cast<char>(std::stoi(byte, nullptr, 16));
+        string byte = hexString.substr(i, 2);
+        char ch = static_cast<char>(stoi(byte, nullptr, 16));
         result += ch;
     }
     return result;
 }
 
 // Unix 时间戳转换为日期时间
-std::string UnixTimestampToDateTime(double seconds) {
-    std::time_t raw_time = static_cast<std::time_t>(seconds);
-    std::tm* time_info = std::localtime(&raw_time);
+string UnixTimestampToDateTime(double seconds) {
+    time_t raw_time = static_cast<time_t>(seconds);
+    struct tm time_info;
+    localtime_s(&time_info, &raw_time);
 
-    std::ostringstream oss;
-    oss << std::put_time(time_info, "%Y-%m-%d %H:%M:%S");
+    ostringstream oss;
+    oss << put_time(&time_info, "%Y-%m-%d %H:%M:%S");
     return oss.str();
 }
 
 // 解析振动数据
-std::vector<std::string> ParseVibration(const std::string& msg, const std::string& type) {
-    std::vector<std::string> res(4);
+vector<string> ParseVibration(const string& msg, const string& type) {
+    vector<string> res(4);
     int totalNumber;
     int number;
 
     // 解析包号
-    std::string total = msg.substr(8, 4);
-    number = std::stoi(total, nullptr, 16);
+    string total = msg.substr(8, 4);
+    number = stoi(total, nullptr, 16);
     totalNumber = 4 * number;
 
     // 解析 X 方向振动数据
-    std::string channel_x = msg.substr(16, totalNumber);
+    string channel_x = msg.substr(16, totalNumber);
 
     // 解析 Y 方向振动数据
-    std::string channel_y = msg.substr(20 + totalNumber, totalNumber);
+    string channel_y = msg.substr(20 + totalNumber, totalNumber);
 
     // 解析 Z 方向振动数据
-    std::string channel_z = msg.substr(24 + 2 * totalNumber, totalNumber);
+    string channel_z = msg.substr(24 + 2 * totalNumber, totalNumber);
 
     // 解析时间戳
-    std::string time_str = msg.substr(24 + 3 * totalNumber, msg.length() - 24 - 3 * totalNumber);
-    double time = std::stod(HexToAscii(time_str));
+    string time_str = msg.substr(24 + 3 * totalNumber, msg.length() - 24 - 3 * totalNumber);
+    double time = stod(HexToAscii(time_str));
     res[3] = UnixTimestampToDateTime(time);
 
     // 解析每个通道数据
-    auto parseChannel = [](const std::string& channel_data) {
-        std::ostringstream oss;
+    auto parseChannel = [](const string& channel_data) {
+        ostringstream oss;
         for (size_t i = 0; i < channel_data.length(); i += 4) {
-            std::string hex_str = channel_data.substr(i, 4);
-            int value = std::stoi(hex_str, nullptr, 16);
+            string hex_str = channel_data.substr(i, 4);
+            int value = stoi(hex_str, nullptr, 16);
 
             if (channel_data[i] >= '0' && channel_data[i] <= '7') {
                 oss << (value / 32.768) << " ";
@@ -398,8 +398,8 @@ std::vector<std::string> ParseVibration(const std::string& msg, const std::strin
 }
 
 
-void GIVEMyMessages(const std::string& topic, const std::string& msg) {
-    static std::unordered_map<std::string, std::queue<std::string>*> topicToQueue = {
+void GIVEMyMessages(const string& topic, const string& msg) {
+    static unordered_map<string, queue<string>*> topicToQueue = {
         {"GASU/Focas/HW1/100ms/Double/NC", &Focas},
         {"GASU/Power/HW1/100ms/Double", &FocasPower},
         {"GASU/Focas/HW1/100ms/String/Info", &FocasNC},
@@ -421,39 +421,79 @@ void GIVEMyMessages(const std::string& topic, const std::string& msg) {
 
 int main() {
 
-    
-
-
     MQTTClient client;
     MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
     int rc;
-
+    
     // 初始化客户端
     MQTTClient_create(&client, ADDRESS, CLIENTID, MQTTCLIENT_PERSISTENCE_NONE, NULL);
 
     // 设置回调函数
-    MQTTClient_setCallbacks(client, NULL, connlost, msgarrvd, delivered);
+    MQTTClient_setCallbacks(client, NULL, connlost, NULL , delivered);
 
     conn_opts.keepAliveInterval = 20;
     conn_opts.cleansession = 1;
 
     // 连接到MQTT服务器
     if ((rc = MQTTClient_connect(client, &conn_opts)) != MQTTCLIENT_SUCCESS) {
-        std::cout << "Failed to connect, return code " << rc << std::endl;
+        cout << "Failed to connect, return code " << rc << endl;
         return -1;
     }
 
-    std::cout << "Subscribing to topic " << TOPIC << " with QoS " << QOS << std::endl;
-    MQTTClient_subscribe(client, TOPIC, QOS);
+    //订阅主题
+    MQTTClient_subscribe(client, "GASU/Focas/HW1/100ms/Double/NC", QOS);
+    MQTTClient_subscribe(client, "GASU/Power/HW1/100ms/Double", QOS);
+    MQTTClient_subscribe(client, "GASU/Focas/HW1/100ms/Double/PLC", QOS);
+    MQTTClient_subscribe(client, "GASU/Focas/HW1/100ms/String/Info", QOS);
+    MQTTClient_subscribe(client, "GASU/Focas/HW1/100ms/Double/Macro", QOS);
+    MQTTClient_subscribe(client, "CBS/Dynamic/HW1/100ms/Double", QOS);
+    MQTTClient_subscribe(client, "CBS/Dynamic/HW2/100ms/Double", QOS);
+
+
+    thread t2(SaveMessages);
+    t2.join();
 
     // 保持程序运行，等待消息
     while (true) {
-        this_thread::sleep_for(std::chrono::milliseconds(1000));
-    }
 
-    // 断开连接并清理资源
-    MQTTClient_disconnect(client, 10000);
-    MQTTClient_destroy(&client);
+        char* topicName = NULL;
+        int topicLen;
+        MQTTClient_message* message = NULL;
+        string msg;
+
+        // 接收消息
+        rc = MQTTClient_receive(client, &topicName, &topicLen, &message, 0); 
+        if (rc != MQTTCLIENT_SUCCESS) {
+            cout << "Error receiving message: " << rc << endl;
+            continue;
+        }
+
+        if (message != NULL) {
+
+            if (topicName == "CBS/Dynamic/HW1/100ms/Double" || topicName == "CBS/Dynamic/HW2/100ms/Double") {
+                // 将 payload 转换为十六进制字符串
+                unsigned char* payload = static_cast<unsigned char*>(message->payload);
+                int payloadlen = message->payloadlen;
+
+                stringstream hex;
+                for (int i = 0; i < payloadlen; ++i) {
+                    hex << setfill('0') << setw(2) << static_cast<int>(payload[i]);
+                }
+                msg = hex.str();
+            }
+            else {
+                // 直接将 payload 转换为字符串
+                msg = string(string(static_cast<char*>(message->payload), message->payloadlen));
+            }
+
+            GIVEMyMessages(topicName, msg);
+        }
+    }
+    
+
+    //// 断开连接并清理资源
+    //MQTTClient_disconnect(client, 10000);
+    //MQTTClient_destroy(&client);
 
     return rc;
 }
